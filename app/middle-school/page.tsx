@@ -98,12 +98,14 @@ export default function MiddleSchoolPage() {
   const [solution, setSolution] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [activeTab, setActiveTab] = useState("problem");
+  const [hintLoading, setHintLoading] = useState(false);
+  const [solutionLoading, setSolutionLoading] = useState(false);
 
   const handleGenerateProblem = async () => {
-    if (!grade || !subcategory || !difficulty) return;
+    if (!subcategory || !difficulty) return;
     
+    // Reset states to ensure a clean start
     setLoading(true);
-    // Reset states to give immediate feedback
     setSteps([]);
     setCurrentStepIndex(0);
     setProblem("");
@@ -115,17 +117,13 @@ export default function MiddleSchoolPage() {
     setChatMessages([]);
     setActiveTab("problem");
     
-    // Setup timeout
-    const timeoutMs = 15000; // 15 seconds
-    let timeoutId: NodeJS.Timeout;
-    
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
-    });
-    
     try {
-      // Race between the request and the timeout
-      const newProblem = await Promise.race<string>([
+      // Add a timeout to prevent infinite loading
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        setTimeout(() => reject(new Error("Request timed out")), 15000);
+      });
+      
+      const newProblem = await Promise.race([
         generateMathProblem(
           "middle-school",
           subcategory,
@@ -134,89 +132,68 @@ export default function MiddleSchoolPage() {
         timeoutPromise
       ]);
       
-      clearTimeout(timeoutId!);
+      if (!newProblem || newProblem.trim() === "") {
+        throw new Error("Generated problem is empty");
+      }
       
       setProblem(newProblem);
       
-      // Parse problem into context and question more effectively
-      // Look for question patterns or explicit "Question:" markers
-      const questionPatterns = [
-        /Question\s*:\s*(.*?)(?:\?|$)/i,
-        /What\s+is\s+[^?]+\?/i,
-        /Find\s+[^?]+\?/i,
-        /Calculate\s+[^?]+\?/i,
-        /Determine\s+[^?]+\?/i,
-        /Compute\s+[^?]+\?/i,
-        /Express\s+[^?]+\?/i,
-      ];
-      
-      let foundQuestion = "";
-      let foundContext = newProblem;
-      
-      // Try to find a question using different patterns
-      for (const pattern of questionPatterns) {
-        const match = newProblem.match(pattern);
-        if (match) {
-          foundQuestion = match[0];
-          // Remove the question from the context
-          foundContext = newProblem.replace(foundQuestion, "").trim();
-          break;
-        }
+      // Parse problem into context and question if possible
+      const parts = newProblem.split("?");
+      if (parts.length > 1) {
+        setProblemContext(parts[0] + "?");
+        setProblemQuestion(parts.slice(1).join("?"));
+      } else {
+        setProblemContext(newProblem);
+        setProblemQuestion("");
       }
       
-      // If no specific question pattern was found, use basic splitting
-      if (!foundQuestion) {
-        const parts = newProblem.split(/[.?!]\s+/);
-        if (parts.length > 1) {
-          // Assume the last sentence is the question
-          foundQuestion = parts.pop() || "";
-          foundContext = parts.join(". ") + ".";
-        }
+      // Initialize steps based on problem type with more robust handling
+      let initialSteps: Step[] = [];
+      
+      if (subcategory === "fractions") {
+        initialSteps = [
+          { instruction: "Convert to common denominator if needed", input: "", isCorrect: null },
+          { instruction: "Perform the operation", input: "", isCorrect: null },
+          { instruction: "Simplify the result", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "percentages") {
+        initialSteps = [
+          { instruction: "Convert percentage to decimal", input: "", isCorrect: null },
+          { instruction: "Set up the equation", input: "", isCorrect: null },
+          { instruction: "Solve for the answer", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "ratios") {
+        initialSteps = [
+          { instruction: "Identify the ratio relationship", input: "", isCorrect: null },
+          { instruction: "Set up the proportion", input: "", isCorrect: null },
+          { instruction: "Solve for the unknown value", input: "", isCorrect: null }
+        ];
+      } else {
+        // Default fallback steps
+        initialSteps = [
+          { instruction: "Write your solution", input: "", isCorrect: null }
+        ];
       }
       
-      setProblemContext(foundContext);
-      setProblemQuestion(foundQuestion);
-      
-      // Initialize steps based on problem type
-      const initialSteps = subcategory === "percentages" ? [
-        { instruction: "Set up the percentage equation", input: "", isCorrect: null },
-        { instruction: "Solve for the unknown value", input: "", isCorrect: null }
-      ] : subcategory === "expressions" ? [
-        { instruction: "Simplify the expression", input: "", isCorrect: null },
-        { instruction: "Solve for the variable", input: "", isCorrect: null }
-      ] : subcategory === "fractions" ? [
-        { instruction: "Set up the fraction equation", input: "", isCorrect: null },
-        { instruction: "Perform the operation", input: "", isCorrect: null }
-      ] : subcategory === "area-volume" ? [
-        { instruction: "Identify the correct formula", input: "", isCorrect: null },
-        { instruction: "Calculate the area or volume", input: "", isCorrect: null }
-      ] : subcategory === "pythagorean" ? [
-        { instruction: "Set up the Pythagorean equation", input: "", isCorrect: null },
-        { instruction: "Solve for the unknown side", input: "", isCorrect: null }
-      ] : subcategory === "linear-equations" ? [
-        { instruction: "Rearrange the equation", input: "", isCorrect: null },
-        { instruction: "Solve for the variable", input: "", isCorrect: null }
-      ] : subcategory === "functions" ? [
-        { instruction: "Evaluate the function", input: "", isCorrect: null },
-        { instruction: "Interpret the result", input: "", isCorrect: null }
-      ] : subcategory === "statistics" ? [
-        { instruction: "Calculate the required statistic", input: "", isCorrect: null },
-        { instruction: "Interpret the meaning", input: "", isCorrect: null }
-      ] : subcategory === "probability" ? [
-        { instruction: "Identify favorable outcomes", input: "", isCorrect: null },
-        { instruction: "Calculate the probability", input: "", isCorrect: null }
-      ] : [
-        { instruction: "Write your solution", input: "", isCorrect: null }
-      ];
+      // Ensure we have at least one step
+      if (initialSteps.length === 0) {
+        initialSteps = [{ instruction: "Write your solution", input: "", isCorrect: null }];
+      }
       
       setSteps(initialSteps);
+      setCurrentStepIndex(0);
+      
     } catch (error: any) {
       console.error("Failed to generate problem:", error);
-      if (error.message === 'Request timed out') {
+      
+      if (error.message === "Request timed out") {
         toast.error("Problem generation timed out. Please try again.");
       } else {
         toast.error("Failed to generate problem. Please try again.");
       }
+      
+      resetProblem(); // Reset to clean state on error
     } finally {
       setLoading(false);
     }
@@ -283,6 +260,7 @@ export default function MiddleSchoolPage() {
 
   const handleHint = async () => {
     setLoading(true);
+    setHintLoading(true);
     try {
       const hint = await generateHint(problem, steps[currentStepIndex].instruction, hintCount + 1);
       setHintCount(prev => prev + 1);
@@ -315,6 +293,7 @@ export default function MiddleSchoolPage() {
       toast.error("Failed to generate hint. Please try again.");
     } finally {
       setLoading(false);
+      setHintLoading(false);
     }
   };
 
@@ -322,6 +301,7 @@ export default function MiddleSchoolPage() {
     if (showingSolution) return;
     
     setLoading(true);
+    setSolutionLoading(true);
     try {
       const fullSolution = await generateFullSolution(problem);
       setSolution(fullSolution);
@@ -355,10 +335,14 @@ export default function MiddleSchoolPage() {
       toast.error("Failed to generate solution. Please try again.");
     } finally {
       setLoading(false);
+      setSolutionLoading(false);
     }
   };
 
   const resetProblem = () => {
+    setLoading(false); // Explicitly reset the loading state
+    setHintLoading(false); // Reset hint loading state
+    setSolutionLoading(false); // Reset solution loading state
     setCurrentStep(1); // Reset to first step (grade selection)
     setGrade(""); // Reset grade selection
     setSubcategory(""); // Reset topic selection
@@ -712,11 +696,20 @@ export default function MiddleSchoolPage() {
                               <Button
                                 variant="outline"
                                 onClick={handleHint}
-                                disabled={loading || showingSolution}
+                                disabled={loading || hintLoading || showingSolution}
                                 className="w-full"
                               >
-                                <HelpCircle className="mr-2 h-4 w-4" />
-                                Get Hint {hintCount > 0 && `(${hintCount})`}
+                                {hintLoading ? (
+                                  <>
+                                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                                    Loading hint...
+                                  </>
+                                ) : (
+                                  <>
+                                    <HelpCircle className="mr-2 h-4 w-4" />
+                                    Get Hint {hintCount > 0 && `(${hintCount})`}
+                                  </>
+                                )}
                               </Button>
                             </div>
                           </TooltipTrigger>
@@ -733,11 +726,20 @@ export default function MiddleSchoolPage() {
                               <Button
                                 variant="outline"
                                 onClick={handleShowSolution}
-                                disabled={loading || showingSolution}
+                                disabled={loading || solutionLoading || showingSolution}
                                 className="w-full"
                               >
-                                <Lightbulb className="mr-2 h-4 w-4" />
-                                Show Solution
+                                {solutionLoading ? (
+                                  <>
+                                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                                    Loading solution...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lightbulb className="mr-2 h-4 w-4" />
+                                    Show Solution
+                                  </>
+                                )}
                               </Button>
                             </div>
                           </TooltipTrigger>

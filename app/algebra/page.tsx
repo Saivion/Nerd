@@ -148,7 +148,7 @@ export default function AlgebraPage() {
     if (!subcategory || !difficulty) return;
     
     setLoading(true);
-    // Reset states to give immediate feedback
+    // Reset states to ensure a clean start
     setSteps([]);
     setCurrentStepIndex(0);
     setProblem("");
@@ -161,17 +161,13 @@ export default function AlgebraPage() {
     setActiveTab("problem");
     setGraphFunctions([]);
     
-    // Setup timeout
-    const timeoutMs = 15000; // 15 seconds
-    let timeoutId: NodeJS.Timeout;
-    
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
-    });
-    
     try {
-      // Race between the request and the timeout
-      const newProblem = await Promise.race<string>([
+      // Add a timeout to prevent infinite loading
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        setTimeout(() => reject(new Error("Request timed out")), 15000);
+      });
+      
+      const newProblem = await Promise.race([
         generateMathProblem(
           "algebra",
           subcategory,
@@ -180,79 +176,81 @@ export default function AlgebraPage() {
         timeoutPromise
       ]);
       
-      clearTimeout(timeoutId!);
+      if (!newProblem || newProblem.trim() === "") {
+        throw new Error("Generated problem is empty");
+      }
       
       setProblem(newProblem);
       
-      // Parse problem into context and question more effectively
-      // Look for question patterns or explicit "Question:" markers
-      const questionPatterns = [
-        /Question\s*:\s*(.*?)(?:\?|$)/i,
-        /What\s+is\s+[^?]+\?/i,
-        /Find\s+[^?]+\?/i,
-        /Calculate\s+[^?]+\?/i,
-        /Determine\s+[^?]+\?/i,
-        /Compute\s+[^?]+\?/i,
-        /Express\s+[^?]+\?/i,
-        /Solve\s+[^?]+\?/i,
-      ];
-      
-      let foundQuestion = "";
-      let foundContext = newProblem;
-      
-      // Try to find a question using different patterns
-      for (const pattern of questionPatterns) {
-        const match = newProblem.match(pattern);
-        if (match) {
-          foundQuestion = match[0];
-          // Remove the question from the context
-          foundContext = newProblem.replace(foundQuestion, "").trim();
-          break;
-        }
+      // Parse problem into context and question if possible
+      const parts = newProblem.split("?");
+      if (parts.length > 1) {
+        setProblemContext(parts[0] + "?");
+        setProblemQuestion(parts.slice(1).join("?"));
+      } else {
+        setProblemContext(newProblem);
+        setProblemQuestion("");
       }
       
-      // If no specific question pattern was found, use basic splitting
-      if (!foundQuestion) {
-        const parts = newProblem.split(/[.?!]\s+/);
-        if (parts.length > 1) {
-          // Assume the last sentence is the question
-          foundQuestion = parts.pop() || "";
-          foundContext = parts.join(". ") + ".";
-        }
+      // Parse graph functions for visualization
+      const functions = parseGraphFunctions(newProblem);
+      if (functions.length > 0) {
+        setGraphFunctions(functions);
       }
       
-      setProblemContext(foundContext);
-      setProblemQuestion(foundQuestion);
+      // Initialize steps based on problem type with more robust handling
+      let initialSteps: Step[] = [];
       
-      // Initialize steps based on problem type
-      const initialSteps = subcategory === "linear-equations" || subcategory === "quadratic-equations" ? [
-        { instruction: "Set up the equation", input: "", isCorrect: null },
-        { instruction: "Solve for the variable", input: "", isCorrect: null }
-      ] : subcategory === "functions" ? [
-        { instruction: "Identify the function type", input: "", isCorrect: null },
-        { instruction: "Find the requested value", input: "", isCorrect: null }
-      ] : [
-        { instruction: "Write your solution", input: "", isCorrect: null }
-      ];
+      if (subcategory === "linear") {
+        initialSteps = [
+          { instruction: "Set up the equation", input: "", isCorrect: null },
+          { instruction: "Solve for the variable", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "quadratic") {
+        initialSteps = [
+          { instruction: "Rearrange to standard form ax² + bx + c = 0", input: "", isCorrect: null },
+          { instruction: "Identify a, b, and c", input: "", isCorrect: null },
+          { instruction: "Solve using the quadratic formula", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "systems") {
+        initialSteps = [
+          { instruction: "Choose a method (substitution or elimination)", input: "", isCorrect: null },
+          { instruction: "Apply the method", input: "", isCorrect: null },
+          { instruction: "Solve for all variables", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "factoring") {
+        initialSteps = [
+          { instruction: "Identify the type of expression", input: "", isCorrect: null },
+          { instruction: "Apply factoring techniques", input: "", isCorrect: null },
+          { instruction: "Express in factored form", input: "", isCorrect: null }
+        ];
+      } else {
+        // Default fallback steps
+        initialSteps = [
+          { instruction: "Write your solution", input: "", isCorrect: null }
+        ];
+      }
+      
+      // Ensure we have at least one step
+      if (initialSteps.length === 0) {
+        initialSteps = [{ instruction: "Write your solution", input: "", isCorrect: null }];
+      }
       
       setSteps(initialSteps);
+      setCurrentStepIndex(0);
       
-      // Parse possible graph functions for visualization
-      if (["linear-equations", "quadratic-equations", "functions"].includes(subcategory)) {
-        const functions = parseGraphFunctions(newProblem);
-        if (functions.length > 0) {
-          setGraphFunctions(functions);
-        }
-      }
     } catch (error: any) {
       console.error("Failed to generate problem:", error);
-      if (error.message === 'Request timed out') {
+      
+      if (error.message === "Request timed out") {
         toast.error("Problem generation timed out. Please try again.");
       } else {
         toast.error("Failed to generate problem. Please try again.");
       }
+      
+      resetProblem(); // Reset to clean state on error
     } finally {
-      setSolutionLoading(false);
+      setLoading(false);
     }
   };
 
@@ -316,6 +314,8 @@ export default function AlgebraPage() {
   };
 
   const handleHint = async () => {
+    if (hintLoading) return; // Prevent duplicate requests
+    
     setHintLoading(true);
     try {
       const hint = await generateHint(problem, steps[currentStepIndex].instruction, hintCount + 1);
@@ -348,12 +348,12 @@ export default function AlgebraPage() {
       console.error("Failed to generate hint:", error);
       toast.error("Failed to generate hint. Please try again.");
     } finally {
-      setSolutionLoading(false);
+      setHintLoading(false);
     }
   };
 
   const handleShowSolution = async () => {
-    if (showingSolution) return;
+    if (showingSolution || solutionLoading) return; // Prevent duplicate requests
     
     setSolutionLoading(true);
     try {
@@ -393,9 +393,17 @@ export default function AlgebraPage() {
   };
 
   const resetProblem = () => {
-    setCurrentStep(1); // Reset to first step (topic selection)
-    setSubcategory(""); // Reset topic selection
-    setDifficulty(""); // Reset difficulty selection
+    // Explicitly reset all loading states
+    setLoading(false);
+    setHintLoading(false);
+    setSolutionLoading(false);
+    
+    // Reset to initial selection state
+    setCurrentStep(1);
+    setSubcategory("");
+    setDifficulty("");
+    
+    // Clear problem data
     setProblem("");
     setProblemContext("");
     setProblemQuestion("");
@@ -687,7 +695,11 @@ export default function AlgebraPage() {
                             className="min-w-20"
                             variant={index === currentStepIndex ? "default" : "outline"}
                           >
-                            Check
+                            {loading ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                            ) : (
+                              "Check"
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -701,11 +713,20 @@ export default function AlgebraPage() {
                               <Button
                                 variant="outline"
                                 onClick={handleHint}
-                                disabled={loading || showingSolution}
+                                disabled={loading || hintLoading || showingSolution}
                                 className="w-full"
                               >
-                                <HelpCircle className="mr-2 h-4 w-4" />
-                                Get Hint {hintCount > 0 && `(${hintCount})`}
+                                {hintLoading ? (
+                                  <>
+                                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                                    Loading hint...
+                                  </>
+                                ) : (
+                                  <>
+                                    <HelpCircle className="mr-2 h-4 w-4" />
+                                    Get Hint {hintCount > 0 && `(${hintCount})`}
+                                  </>
+                                )}
                               </Button>
                             </div>
                           </TooltipTrigger>
@@ -722,11 +743,20 @@ export default function AlgebraPage() {
                               <Button
                                 variant="outline"
                                 onClick={handleShowSolution}
-                                disabled={loading || showingSolution}
+                                disabled={loading || solutionLoading || showingSolution}
                                 className="w-full"
                               >
-                                <Lightbulb className="mr-2 h-4 w-4" />
-                                Show Solution
+                                {solutionLoading ? (
+                                  <>
+                                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                                    Loading solution...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lightbulb className="mr-2 h-4 w-4" />
+                                    Show Solution
+                                  </>
+                                )}
                               </Button>
                             </div>
                           </TooltipTrigger>

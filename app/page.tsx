@@ -95,7 +95,7 @@ export default function Home() {
                       <category.icon className="h-6 w-6 text-primary" />
                     </div>
                     {category.comingSoon && (
-                      <span className="text-xs bg-primary text-white px-2 py-1 rounded-full h-fit">Coming Soon</span>
+                      <span className="text-xs bg-primary dark:bg-primary/30 text-white dark:text-white px-2 py-1 rounded-full h-fit">Coming Soon</span>
                     )}
                   </div>
                   <div className="flex-1 flex flex-col justify-end z-10">

@@ -88,6 +88,7 @@
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
-    "@types/react-katex": "^3.0.4"
+    "@types/react-katex": "^3.0.4",
+    "ts-loader": "^9.5.2"
   }
 }

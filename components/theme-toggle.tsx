@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -13,7 +13,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function ThemeToggle() {
-  const { setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
+
+  // After component mounts (hydration is complete)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Render placeholder during SSR/hydration to avoid mismatch
+  if (!mounted) {
+    return (
+      <Button variant="outline" size="icon">
+        <span className="h-[1.2rem] w-[1.2rem]" />
+        <span className="sr-only">Loading theme</span>
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>

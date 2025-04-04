@@ -68,17 +68,36 @@ export default function GeometryPage() {
   const [solution, setSolution] = useState<string[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [activeTab, setActiveTab] = useState("problem");
+  const [hintLoading, setHintLoading] = useState(false);
+  const [solutionLoading, setSolutionLoading] = useState(false);
 
   const handleGenerateProblem = async () => {
     if (!subcategory || !difficulty) return;
     
     setLoading(true);
+    // Reset states to ensure a clean start
+    setSteps([]);
+    setCurrentStepIndex(0);
+    setProblem("");
+    setProblemContext("");
+    setProblemQuestion("");
+    setHintCount(0);
+    setShowingSolution(false);
+    setSolution([]);
+    setChatMessages([]);
+    setActiveTab("problem");
+    
     try {
       const newProblem = await generateMathProblem(
         "geometry",
         subcategory,
         difficulty as "easy" | "medium" | "hard"
       );
+      
+      if (!newProblem || newProblem.trim() === "") {
+        throw new Error("Generated problem is empty");
+      }
+      
       setProblem(newProblem);
       
       // Parse problem into context and question if possible
@@ -92,24 +111,57 @@ export default function GeometryPage() {
       }
       
       // Initialize steps based on problem type
-      const initialSteps = subcategory === "triangles" ? [
-        { instruction: "Identify the given information", input: "", isCorrect: null },
-        { instruction: "Apply the appropriate theorem or formula", input: "", isCorrect: null },
-        { instruction: "Solve for the unknown value", input: "", isCorrect: null }
-      ] : [
-        { instruction: "Write your solution", input: "", isCorrect: null }
-      ];
+      let initialSteps: Step[] = [];
+      
+      if (subcategory === "triangles") {
+        initialSteps = [
+          { instruction: "Identify the given information", input: "", isCorrect: null },
+          { instruction: "Apply the appropriate theorem or formula", input: "", isCorrect: null },
+          { instruction: "Solve for the unknown value", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "circles") {
+        initialSteps = [
+          { instruction: "Identify circle properties", input: "", isCorrect: null },
+          { instruction: "Apply circle formulas", input: "", isCorrect: null },
+          { instruction: "Calculate the answer", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "angles") {
+        initialSteps = [
+          { instruction: "Identify angle relationships", input: "", isCorrect: null },
+          { instruction: "Apply angle properties", input: "", isCorrect: null },
+          { instruction: "Find the unknown angle", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "polygons") {
+        initialSteps = [
+          { instruction: "Identify polygon properties", input: "", isCorrect: null },
+          { instruction: "Apply relevant formulas", input: "", isCorrect: null },
+          { instruction: "Calculate the result", input: "", isCorrect: null }
+        ];
+      } else if (subcategory === "transformations") {
+        initialSteps = [
+          { instruction: "Identify the transformation type", input: "", isCorrect: null },
+          { instruction: "Apply transformation rules", input: "", isCorrect: null },
+          { instruction: "Find transformed coordinates", input: "", isCorrect: null }
+        ];
+      } else {
+        // Default fallback steps
+        initialSteps = [
+          { instruction: "Write your solution", input: "", isCorrect: null }
+        ];
+      }
+      
+      // Ensure we have at least one step
+      if (initialSteps.length === 0) {
+        initialSteps = [{ instruction: "Write your solution", input: "", isCorrect: null }];
+      }
       
       setSteps(initialSteps);
       setCurrentStepIndex(0);
-      setHintCount(0);
-      setShowingSolution(false);
-      setSolution([]);
-      setChatMessages([]);
-      setActiveTab("problem");
+      
     } catch (error) {
       console.error("Failed to generate problem:", error);
       toast.error("Failed to generate problem. Please try again.");
+      resetProblem(); // Reset to clean state on error
     } finally {
       setLoading(false);
     }
@@ -175,7 +227,9 @@ export default function GeometryPage() {
   };
 
   const handleHint = async () => {
-    setLoading(true);
+    if (hintLoading) return;
+    
+    setHintLoading(true);
     try {
       const hint = await generateHint(problem, steps[currentStepIndex].instruction, hintCount + 1);
       setHintCount(prev => prev + 1);
@@ -207,14 +261,14 @@ export default function GeometryPage() {
       console.error("Failed to generate hint:", error);
       toast.error("Failed to generate hint. Please try again.");
     } finally {
-      setLoading(false);
+      setHintLoading(false);
     }
   };
 
   const handleShowSolution = async () => {
     if (showingSolution) return;
     
-    setLoading(true);
+    setSolutionLoading(true);
     try {
       const fullSolution = await generateFullSolution(problem);
       setSolution(fullSolution);
@@ -247,11 +301,14 @@ export default function GeometryPage() {
       console.error("Failed to generate solution:", error);
       toast.error("Failed to generate solution. Please try again.");
     } finally {
-      setLoading(false);
+      setSolutionLoading(false);
     }
   };
 
   const resetProblem = () => {
+    setLoading(false); // Explicitly reset the loading state
+    setHintLoading(false); // Reset hint loading state
+    setSolutionLoading(false); // Reset solution loading state
     setCurrentStep(1); // Reset to first step (topic selection)
     setSubcategory(""); // Reset topic selection
     setDifficulty(""); // Reset difficulty selection
@@ -491,67 +548,101 @@ export default function GeometryPage() {
                     </div>
                     
                     <div className="flex-grow min-h-[300px]">
-                      <StructuredProblem 
-                        content={problem} 
-                        showSolution={false} 
-                      />
+                      {problem ? (
+                        <StructuredProblem 
+                          content={problem} 
+                          showSolution={false} 
+                        />
+                      ) : loading ? (
+                        <div className="flex justify-center items-center h-full">
+                          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center items-center h-full text-muted-foreground">
+                          No problem loaded. Please generate a new problem.
+                        </div>
+                      )}
                     </div>
 
                     <div className="mb-8 mt-6">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-medium text-muted-foreground">Progress</h3>
                         <span className="text-sm text-muted-foreground">
-                          Step {currentStepIndex + 1} of {steps.length}
+                          {steps.length > 0 ? `Step ${currentStepIndex + 1} of ${steps.length}` : "No steps available"}
                         </span>
                       </div>
                       <Progress value={progress} className="h-2" />
                     </div>
 
-                    {!showingSolution && steps.map((step, index) => (
-                      <div
-                        key={index}
-                        className={`mb-6 rounded-lg p-4 ${index === currentStepIndex ? "border bg-card" : "opacity-60"}`}
-                      >
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className={`rounded-full w-7 h-7 flex items-center justify-center text-sm font-medium ${
-                            step.isCorrect === true 
-                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
-                              : step.isCorrect === false
-                                ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-                                : "bg-primary/10 text-primary"
-                          }`}>
-                            {step.isCorrect === true 
-                              ? <CheckCircle2 className="h-4 w-4" /> 
-                              : step.isCorrect === false
-                                ? <AlertCircle className="h-4 w-4" />
-                                : index + 1}
+                    {!showingSolution && steps.length > 0 ? (
+                      steps.map((step, index) => (
+                        <div
+                          key={index}
+                          className={`mb-6 rounded-lg p-4 ${index === currentStepIndex ? "border bg-card" : "opacity-60"}`}
+                        >
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className={`rounded-full w-7 h-7 flex items-center justify-center text-sm font-medium ${
+                              step.isCorrect === true 
+                                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
+                                : step.isCorrect === false
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                                  : "bg-primary/10 text-primary"
+                            }`}>
+                              {step.isCorrect === true 
+                                ? <CheckCircle2 className="h-4 w-4" /> 
+                                : step.isCorrect === false
+                                  ? <AlertCircle className="h-4 w-4" />
+                                  : index + 1}
+                            </div>
+                            <span className="font-medium">{step.instruction}</span>
                           </div>
-                          <span className="font-medium">{step.instruction}</span>
+                          <div className="flex gap-2 relative">
+                            <div className="flex-1">
+                              <MathInput
+                                value={step.input}
+                                onChange={(value) => {
+                                  const updatedSteps = [...steps];
+                                  updatedSteps[index].input = value;
+                                  setSteps(updatedSteps);
+                                }}
+                                disabled={index !== currentStepIndex || loading}
+                                placeholder="Enter your answer..."
+                              />
+                            </div>
+                            <Button
+                              onClick={() => handleStepSubmit(index)}
+                              disabled={index !== currentStepIndex || !step.input || loading}
+                              className="min-w-20"
+                              variant={index === currentStepIndex ? "default" : "outline"}
+                            >
+                              {loading ? (
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                              ) : (
+                                "Check"
+                              )}
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex gap-2 relative">
-                          <div className="flex-1">
-                            <MathInput
-                              value={step.input}
-                              onChange={(value) => {
-                                const updatedSteps = [...steps];
-                                updatedSteps[index].input = value;
-                                setSteps(updatedSteps);
-                              }}
-                              disabled={index !== currentStepIndex || loading}
-                              placeholder="Enter your answer..."
-                            />
-                          </div>
+                      ))
+                    ) : !showingSolution && problem ? (
+                      <div className="flex justify-center p-6 border rounded-lg bg-muted/20">
+                        <div className="text-center">
+                          <AlertCircle className="mx-auto h-6 w-6 text-orange-500 mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            No steps available for this problem. Try refreshing or generating a new problem.
+                          </p>
                           <Button
-                            onClick={() => handleStepSubmit(index)}
-                            disabled={index !== currentStepIndex || !step.input || loading}
-                            className="min-w-20"
-                            variant={index === currentStepIndex ? "default" : "outline"}
+                            variant="outline"
+                            size="sm"
+                            className="mt-4"
+                            onClick={resetProblem}
                           >
-                            Check
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            New Problem
                           </Button>
                         </div>
                       </div>
-                    ))}
+                    ) : null}
 
                     <div className="flex gap-4 mt-6">
                       <TooltipProvider>
@@ -561,11 +652,20 @@ export default function GeometryPage() {
                               <Button
                                 variant="outline"
                                 onClick={handleHint}
-                                disabled={loading || showingSolution}
+                                disabled={loading || hintLoading || showingSolution}
                                 className="w-full"
                               >
-                                <HelpCircle className="mr-2 h-4 w-4" />
-                                Get Hint {hintCount > 0 && `(${hintCount})`}
+                                {hintLoading ? (
+                                  <>
+                                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                                    Loading hint...
+                                  </>
+                                ) : (
+                                  <>
+                                    <HelpCircle className="mr-2 h-4 w-4" />
+                                    Get Hint {hintCount > 0 && `(${hintCount})`}
+                                  </>
+                                )}
                               </Button>
                             </div>
                           </TooltipTrigger>
@@ -582,11 +682,20 @@ export default function GeometryPage() {
                               <Button
                                 variant="outline"
                                 onClick={handleShowSolution}
-                                disabled={loading || showingSolution}
+                                disabled={loading || solutionLoading || showingSolution}
                                 className="w-full"
                               >
-                                <Lightbulb className="mr-2 h-4 w-4" />
-                                Show Solution
+                                {solutionLoading ? (
+                                  <>
+                                    <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                                    Loading solution...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lightbulb className="mr-2 h-4 w-4" />
+                                    Show Solution
+                                  </>
+                                )}
                               </Button>
                             </div>
                           </TooltipTrigger>
