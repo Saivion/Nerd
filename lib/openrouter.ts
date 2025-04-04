@@ -22,11 +22,12 @@ export async function generateMathProblem(
       }),
     });
 
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
+      throw new Error(data.error || `Error: ${response.status}`);
     }
 
-    const data = await response.json();
     return data.result;
   } catch (error) {
     console.error('Error generating math problem:', error);
@@ -55,11 +56,12 @@ export async function generateHint(
       }),
     });
 
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
+      throw new Error(data.error || `Error: ${response.status}`);
     }
 
-    const data = await response.json();
     return data.result;
   } catch (error) {
     console.error('Error generating hint:', error);
@@ -88,11 +90,12 @@ export async function validateStep(
       }),
     });
 
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
+      throw new Error(data.error || `Error: ${response.status}`);
     }
 
-    const data = await response.json();
     return data.result;
   } catch (error) {
     console.error('Error validating step:', error);
@@ -115,11 +118,12 @@ export async function generateFullSolution(problem: string): Promise<string[]> {
       }),
     });
 
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
+      throw new Error(data.error || `Error: ${response.status}`);
     }
 
-    const data = await response.json();
     return data.result;
   } catch (error) {
     console.error('Error generating full solution:', error);

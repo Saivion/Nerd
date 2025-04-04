@@ -1,90 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { openrouter } from '@openrouter/ai-sdk-provider';
-import { generateText } from 'ai';
 
-// We'll use a simplified version of the formatter for server-side processing
+// Simple formatter for math text
 function formatMathText(text: string): string {
-  if (!text) return '';
-
-  // STEP 1: Apply basic text normalization
-  let processedText = text
-    // First, normalize common contractions and punctuation
-    .replace(/([a-z])'s/g, '$1 \'s')
-    .replace(/([a-z])([,.;:?!])/g, '$1 $2')
-    
-    // STEP 2: Generic spacing fixes for word boundaries
-    .replace(/([a-z])([A-Z])/g, '$1 $2')  // Add space between lowercase and uppercase letters
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')  // Add space between consecutive capital letters
-    .replace(/(\.)([A-Z])/g, '$1 $2')  // Add space after period followed by capital
-    .replace(/(\,)([A-Z])/g, '$1 $2')  // Add space after comma followed by capital
-    .replace(/(\d+)([a-z][a-z])/g, '$1 $2')  // Add space between number and multiple lowercase letters
-
-    // STEP 3: Handle mathematical notation
-    .replace(/(\d+)([a-zA-Z])/g, '$1 $2')  // Add space between number and variable
-    .replace(/([a-zA-Z])(\d+)/g, '$1 $2')  // Add space between variable and number
-    .replace(/angle\s?/g, '\\angle ')
-    .replace(/triangle\s?/g, '\\triangle ')
-    .replace(/\\cdot/g, ' \\cdot ')
-    .replace(/\\cdot\s{2,}/g, '\\cdot ')
-    .replace(/\s{2,}\\cdot/g, ' \\cdot')
-    .replace(/(\d+)degrees/g, '$1^{\\circ}')
-    .replace(/(\d+)°/g, '$1^{\\circ}')
-    .replace(/(\d+)\s+degrees/g, '$1^{\\circ}')
-    
-    // STEP 4: Fix spaces around operators
-    .replace(/([^\s])=/g, '$1 =')
-    .replace(/=([^\s])/g, '= $1')
-    .replace(/(\d)([+\-*/])/g, '$1 $2')
-    .replace(/([+\-*/])(\d)/g, '$1 $2');
-  
-  // STEP 5: Simplified word boundary detection for common terms
-  // This is a more performance-optimized version with fewer terms
-  const mathTerms = [
-    'Problem', 'Statement', 'Question', 'Solution', 'Answer', 'Rectangle', 'Triangle', 'Circle', 
-    'Square', 'Percent', 'Percentage', 'Equation', 'Expression', 'Variable', 'Angle', 'Geometry', 
-    'Algebra', 'Calculate', 'Find', 'Determine', 'Solve', 'Length', 'Width', 'Height', 'Area',
-    'Perimeter', 'Degrees', 'Feet', 'Inches', 'Point', 'Line', 'Function', 'Here', 'What', 
-    'The', 'For', 'All', 'Books', 'Are', 'Is', 'Having', 'Sale', 'Local', 'Store', 'Book', 
-    'Price', 'Garden', 'Path', 'Around', 'Express', 'Your', 'Answer', 'School', 'Middle'
-  ];
-  
-  // Generate variations with limited case variations to improve performance
-  const allTerms = [
-    ...mathTerms,
-    ...mathTerms.map(term => term.toLowerCase()),
-  ];
-  
-  // Create a regex pattern that looks for these terms
-  // This is more performance-optimized now
-  const termPattern = new RegExp(`(${allTerms.join('|')})`, 'g');
-  
-  // Temporary replace with markers to preserve these terms
-  processedText = processedText.replace(termPattern, ' $1 ');
-  
-  // Perform final cleanup with simpler operations
-  processedText = processedText
-    // Fix for section headers
-    .replace(/([a-z])(Problem|Statement|Question|Solution|Answer)/g, '$1 $2')
-    .replace(/(Problem|Statement|Question|Solution|Answer)([a-z])/g, '$1 $2')
-    
-    // Fix coordinates and geometric notation
-    .replace(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g, '($1, $2)')
-    .replace(/([A-Z])([A-Z])([A-Z])/g, '$1$2$3') // Keep adjacent capital letters as is for shape vertices
-    
-    // Clean up any double spaces and normalize whitespace
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-  
-  return processedText;
+  return text.trim();
 }
 
-// This API route will be called from the client-side but keep the API key secure
 export async function POST(request: NextRequest) {
   try {
-    const { type, params } = await request.json();
+    const body = await request.json();
+    const { type, params } = body;
     
-    // Configure the model
-    const model = openrouter('google/gemma-3-12b-it:free');
+    // OpenRouter API configuration
+    // In Vercel, sometimes process.env needs to be accessed directly
+    let OPENROUTER_API_KEY = "";
+    
+    // Try multiple methods to get the API key
+    if (process.env.OPENROUTER_API_KEY) {
+      OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+    } else if (typeof process.env.OPENROUTER_API_KEY === 'string') {
+      OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+    } else {
+      // Last resort hardcoded for testing - REMOVE IN PRODUCTION
+      // OPENROUTER_API_KEY = "sk-or-v1-..."; // DO NOT COMMIT ACTUAL KEY
+    }
+    
+    if (!OPENROUTER_API_KEY) {
+      console.error('OpenRouter API key not configured');
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+    }
+    
+    // Log API key length for debugging (don't log the actual key for security)
+    console.log(`API key found with length: ${OPENROUTER_API_KEY.length}`);
+    console.log(`API key starts with: ${OPENROUTER_API_KEY.substring(0, 5)}...`);
     
     // Set up the appropriate prompt and system message based on request type
     let prompt: string;
@@ -98,54 +45,22 @@ export async function POST(request: NextRequest) {
         // Validate the category
         const validCategories = ['algebra', 'calculus', 'geometry', 'statistics', 'middle-school'];
         if (!validCategories.includes(category)) {
-          return NextResponse.json({ error: `Invalid category. Must be one of: ${validCategories.join(', ')}` }, { status: 400 });
-        }
-
-        // Special handling for geometry problems
-        let geometrySpecificPrompt = '';
-        if (category === 'geometry') {
-          geometrySpecificPrompt = `
-          For geometry problems specifically:
-          - Label shapes with capital letters (A, B, C)
-          - Use \\angle notation for angles
-          - Use \\triangle notation for triangles
-          - Use ^{\\circ} notation for degrees
-          `;
+          return NextResponse.json({ error: `Invalid category` }, { status: 400 });
         }
 
         prompt = `Generate a ${difficulty} ${subcategory} problem in the category of ${category}.
                  The problem should be clear, concise, and appropriate for the difficulty level.
-                 Keep the response brief and direct.
+                 Keep the response brief and direct.`;
                  
-                 VERY IMPORTANT: Ensure there is proper spacing between words. Do not join words together.
-                 For example, write "percentage problem" not "percentageproblem" and "middle school" not "middleschool".
-                 
-                 Structure your response with:
-                 1. Problem Statement: A clearly stated problem with all necessary information
-                 2. Question: What specifically is being asked
-                 
-                 For all math problems:
-                 - Use proper LaTeX notation for mathematical expressions
-                 - Use ^ for exponents, e.g., x^2 not x**2 or x^{2} for better formatting
-                 - Use \\frac{a}{b} for fractions
-                 - Use \\sqrt{x} for square roots
-                 
-                 ${geometrySpecificPrompt}
-                 
-                 Do not provide the solution in your response.`;
-                 
-        systemMessage = 'You are a mathematics teacher who creates clear, direct math problems with proper spacing between words.';
+        systemMessage = 'You are a mathematics teacher who creates clear, direct math problems.';
         textProcessor = (text) => formatMathText(text);
         break;
       case 'generateHint':
         const { problem, currentStep, hintLevel } = params;
         prompt = `For the math problem: "${problem}"
                  Current step: "${currentStep}"
-                 Provide a level ${hintLevel} hint that guides without revealing the complete solution.
-                 Use proper LaTeX notation for mathematical expressions.
-                 Don't use escaped characters like \\t, \\r, etc. unless they're part of a LaTeX command.
-                 Format your response with proper spacing between words.`;
-        systemMessage = 'You are a helpful math tutor who provides progressive hints with clear formatting.';
+                 Provide a level ${hintLevel} hint that guides without revealing the complete solution.`;
+        systemMessage = 'You are a helpful math tutor who provides progressive hints.';
         textProcessor = (text) => text.trim();
         break;
       case 'validateStep':
@@ -160,15 +75,8 @@ export async function POST(request: NextRequest) {
       case 'generateFullSolution':
         const { problem: solutionProblem } = params;
         prompt = `For the math problem: "${solutionProblem}"
-                 Provide a detailed, step-by-step solution. Format each step as a separate line.
-                 Use proper LaTeX notation for all mathematical expressions.
-                 For geometry problems with angles, use \\angle notation.
-                 For triangle problems, use \\triangle notation.
-                 For degree symbols, use ^{\\circ} notation.
-                 Number each step with "Step 1:", "Step 2:", etc.
-                 Ensure all steps have clear explanations.
-                 Format with proper spacing between words.`;
-        systemMessage = 'You are a mathematics teacher providing detailed step-by-step solutions with proper formatting.';
+                 Provide a detailed, step-by-step solution.`;
+        systemMessage = 'You are a mathematics teacher providing detailed step-by-step solutions.';
         textProcessor = (text) => {
           const steps = text.split('\n')
             .map(step => step.trim())
@@ -180,40 +88,83 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid request type' }, { status: 400 });
     }
     
-    // Generate text using the OpenRouter with a timeout
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timed out')), 10000); // 10 second timeout
-    });
-    
     try {
-      // Race between the AI request and the timeout
-      const result = await Promise.race([
-        (async () => {
-          const { text } = await generateText({
-            model: model,
-            prompt: prompt,
-            system: systemMessage,
-            // Add parameters to make response faster
-            temperature: 0.7,
-            maxTokens: 500,
-          });
-          
-          // Process the response based on the request type
-          return textProcessor(text);
-        })(),
-        timeoutPromise
-      ]);
+      // Call OpenRouter API directly instead of using the SDK
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'https://nerd-saivion-math.vercel.app/', // Your site URL for attribution
+          'X-Title': 'Math Education Platform', // Optional: Your site name
+          'OpenAI-Organization': 'org-dummy' // Required by OpenRouter
+        },
+        body: JSON.stringify({
+          model: 'google/gemma-3-12b-it:free', 
+          fallbacks: ['mistralai/mixtral-8x7b-instruct:free'], // Fallback to another free model if first choice unavailable
+          messages: [
+            {
+              role: 'system',
+              content: systemMessage
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 500
+        })
+      });
+
+      if (!response.ok) {
+        let errorMessage = `HTTP error: ${response.status} ${response.statusText}`;
+        let errorDetails = null;
+        
+        try {
+          errorDetails = await response.json();
+          console.error('OpenRouter API error details:', errorDetails);
+        } catch (jsonError) {
+          console.error('Failed to parse error response:', jsonError);
+          errorDetails = { message: 'Could not parse error response' };
+        }
+        
+        return NextResponse.json(
+          { 
+            error: 'AI service error', 
+            status: response.status,
+            message: errorMessage,
+            details: errorDetails 
+          },
+          { status: response.status }
+        );
+      }
+
+      const data = await response.json();
+      const text = data.choices[0]?.message?.content || '';
+      
+      // Log success for debugging
+      console.log('OpenRouter API success:', {
+        model: data.model,
+        usage: data.usage
+      });
+      
+      // Process the response based on the request type
+      const result = textProcessor(text);
       
       return NextResponse.json({ result });
     } catch (error: any) {
-      if (error.message === 'Request timed out') {
-        console.error('Request timed out');
-        return NextResponse.json({ error: 'Request timed out. Please try again.' }, { status: 408 });
-      }
-      throw error; // Re-throw for the outer catch
+      console.error('OpenRouter API error:', error);
+      return NextResponse.json(
+        { error: 'AI service unavailable', details: error.message },
+        { status: 503 }
+      );
     }
-  } catch (error) {
-    console.error('Error in math API route:', error);
-    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
+  } catch (error: any) {
+    console.error('API error:', error);
+    return NextResponse.json(
+      { error: 'Failed to process request', details: error.message },
+      { status: 500 }
+    );
   }
 } 

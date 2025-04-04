@@ -12,7 +12,7 @@ export function ProgressDisplay() {
   // Using Next.js hydration safety pattern
   const [mounted, setMounted] = useState(false);
   const [progress, setProgress] = useState<UserProgress>(defaultProgress);
-  const [iconClass, setIconClass] = useState("text-purple-500"); // Default to purple for SSR
+  const [iconColor, setIconColor] = useState("text-purple-500"); // Default color for SSR
   const router = useRouter();
   const { theme, resolvedTheme } = useTheme();
 
@@ -23,8 +23,8 @@ export function ProgressDisplay() {
     // Now we can safely access localStorage
     setProgress(getProgress());
 
-    // Now that we're on the client, we can update the icon class based on theme
-    setIconClass(
+    // Update icon color based on theme
+    setIconColor(
       theme === "dark" || resolvedTheme === "dark" 
         ? "text-lime-500" 
         : "text-purple-500"
@@ -65,15 +65,15 @@ export function ProgressDisplay() {
   return (
     <div className="flex items-center gap-4">
       <Card className="p-2 flex items-center gap-2">
-        <Zap className={`h-4 w-4 ${iconClass}`} />
+        <Zap className={`h-4 w-4 ${iconColor}`} />
         <span className="font-medium">{progress.streak} day streak</span>
       </Card>
       <Card className="p-2 flex items-center gap-2">
-        <Star className={`h-4 w-4 ${iconClass}`} />
+        <Star className={`h-4 w-4 ${iconColor}`} />
         <span className="font-medium">{progress.stars}</span>
       </Card>
       {/* <Card className="p-2 flex items-center gap-2">
-        <Trophy className={`h-4 w-4 ${iconClass}`} />
+        <Trophy className={`h-4 w-4 ${iconColor}`} />
         <span className="font-medium">{progress.achievements.length}</span>
       </Card> */}
     </div>
