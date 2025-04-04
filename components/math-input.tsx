@@ -1,12 +1,21 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import { MathfieldElement } from 'mathlive';
+import 'mathlive';
+
+// We need to use 'type' to reference the element type without attempting to import the class directly
+type MathfieldElement = HTMLElement & {
+  value: string;
+  setAttribute(name: string, value: string): void;
+  addEventListener(type: string, listener: EventListener): void;
+  remove(): void;
+};
 
 // Register the custom element if it hasn't been registered already
 // This is needed because MathfieldElement is a custom element
 if (typeof window !== 'undefined' && !customElements.get('math-field')) {
-  customElements.define('math-field', MathfieldElement);
+  // The custom element will be registered by the mathlive import
+  // No need to define it manually
 }
 
 interface MathInputProps {
@@ -31,7 +40,7 @@ export function MathInput({ value, onChange, placeholder, disabled }: MathInputP
 
     // Create the mathfield element
     try {
-      const mathField = new MathfieldElement();
+      const mathField = document.createElement('math-field') as MathfieldElement;
       mathField.value = value;
       // Set attributes directly
       mathField.setAttribute('virtual-keyboard-mode', 'manual');

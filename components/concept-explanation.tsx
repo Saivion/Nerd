@@ -14,7 +14,23 @@ interface ConceptExplanationProps {
   subcategory: string;
 }
 
-const conceptData = {
+// Define proper types for the concept data structure
+interface Concept {
+  title: string;
+  description: string;
+  examples: string[];
+  key_points: string[];
+}
+
+type CategoryData = {
+  [subcategory: string]: Concept;
+};
+
+type ConceptDataType = {
+  [category: string]: CategoryData;
+};
+
+const conceptData: ConceptDataType = {
   algebra: {
     linear: {
       title: "Linear Equations",
@@ -62,7 +78,9 @@ const conceptData = {
 };
 
 export function ConceptExplanation({ category, subcategory }: ConceptExplanationProps) {
-  const concept = conceptData[category as keyof typeof conceptData]?.[subcategory as keyof typeof conceptData[keyof typeof conceptData]];
+  // Fix the type assertion to correctly access nested properties
+  const categoryData = conceptData[category];
+  const concept = categoryData ? categoryData[subcategory] : undefined;
   
   if (!concept) return null;
 
