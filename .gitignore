@@ -1,0 +1,83 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+/dist/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+Thumbs.db
+*.md
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# logs
+logs
+*.log
+
+# API keys and secrets
+.env.development
+.env.production
+.env.test
+.secret*
+*config.json
+*apikeys*
+
+# VS Code directory
+.vscode/
+
+# JetBrains IDE settings
+.idea/
+
+# OSX
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE / editors
+*.swp
+*.swo
+*.sublime-workspace
+*~
+
+# Coverage reports
+coverage
+*.lcov
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
