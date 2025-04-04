@@ -752,7 +752,13 @@ export default function MiddleSchoolPage() {
                   <TabsContent value="hints" className="m-0">
                     <Chat 
                       messages={chatMessages}
-                      title="Hints & Guidance"
+                      onSendMessage={(message) => {
+                        setChatMessages([...chatMessages, {
+                          content: message,
+                          role: "user",
+                          timestamp: new Date()
+                        }]);
+                      }}
                       className="border-0 shadow-none"
                     />
                   </TabsContent>

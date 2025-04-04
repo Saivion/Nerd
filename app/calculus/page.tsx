@@ -318,7 +318,13 @@ export default function CalculusPage() {
             <div className="lg:col-span-1">
               <Chat 
                 messages={chatMessages}
-                title="Hints & Solutions"
+                onSendMessage={(message) => {
+                  setChatMessages([...chatMessages, {
+                    content: message,
+                    role: "user",
+                    timestamp: new Date()
+                  }]);
+                }}
                 className="sticky top-20"
               />
             </div>

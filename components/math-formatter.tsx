@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { InlineMath, BlockMath } from 'react-katex';
 import 'katex/dist/katex.min.css';
 import { GeometryVisualizer, parseGeometryProblem } from './geometry-visualizer';
@@ -436,6 +436,30 @@ export function FormattedProblem({ content }: { content: string }) {
       <div className="prose prose-slate dark:prose-invert max-w-none">
         <MathFormatter content={content} />
       </div>
+    </div>
+  );
+}
+
+// A type for formatted problem with separate context and question
+export interface FormattedProblem {
+  context: string;
+  question: string;
+}
+
+// A component to display a formatted math problem
+export function FormattedMathProblem({ context, question }: FormattedProblem) {
+  return (
+    <div className="space-y-2">
+      {context && (
+        <div className="text-muted-foreground">
+          <MathFormatter content={context} />
+        </div>
+      )}
+      {question && (
+        <div className="font-medium">
+          <MathFormatter content={question} />
+        </div>
+      )}
     </div>
   );
 } 
