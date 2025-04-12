@@ -52,7 +52,7 @@ logs
 .env.production
 .env.test
 .secret*
-*config.json
+# *config.json - commented out to allow tsconfig.json
 *apikeys*
 
 # VS Code directory
