@@ -1,5 +1,5 @@
 {
-  "name": "nerd-app",
+  "name": "nerd-deployment",
   "compatibility_date": "2025-04-12",
   "compatibility_flags": ["nodejs_compat"],
   "minify": true,
