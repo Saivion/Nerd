@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "deploy": "next build && wrangler deploy",
+    "deploy:prod": "next build && wrangler deploy --env production",
+    "preview": "next build && wrangler dev"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -89,6 +92,7 @@
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "@types/react-katex": "^3.0.4",
-    "ts-loader": "^9.5.2"
+    "ts-loader": "^9.5.2",
+    "wrangler": "^4.10.0"
   }
 }

@@ -1,0 +1,15 @@
+name = "nerd-app"
+compatibility_date = "2025-04-12"
+compatibility_flags = ["nodejs_compat"]
+
+# Minification helps to keep the Worker bundle size down and improve start up time
+minify = true
+
+# Use Workers + Assets to host the static frontend files
+[assets]
+directory = "out"
+binding = "ASSETS"
+
+# Environment variables
+[vars]
+NODE_ENV = "production" 

@@ -1,0 +1,12 @@
+{
+  "name": "nerd-app",
+  "compatibility_date": "2025-04-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "minify": true,
+  "assets": {
+    "directory": "out"
+  },
+  "vars": {
+    "NODE_ENV": "production"
+  }
+}
